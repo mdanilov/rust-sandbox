@@ -1,0 +1,11 @@
+[package]
+name = "graph"
+version = "0.1.0"
+authors = ["Maxim Danilov <mdanilov@me.com>"]
+edition = "2018"
+description = "Simple graph search utility"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+num_cpus = "^1.12.0"
+threadpool = "^1.7.1"
