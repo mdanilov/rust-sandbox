@@ -32,12 +32,22 @@ pub struct Graph {
     pub vertexes_count: usize,
 }
 
+pub struct SearchResult {
+    pub levels: Vec<i32>,
+    pub parents: Vec<usize>,
+    pub max_queue_size: usize
+}
+
+pub trait SearchDelegate {
+    fn entry_node(&self, v: usize, parent: usize, level: i32, parents: &Vec<usize>) -> bool;
+}
+
 impl Graph {
     /// Perform breadth-first search algorithm on the graph
     /// starting from the vertex 'v'.
     /// For each explored node the 'cb' callback function is called.
-    pub fn bfs<F>(&self, v: usize, mut cb: F) -> (Vec<i32>, Vec<usize>, usize)
-        where F: FnMut(usize) -> bool {
+    pub fn bfs<F>(&self, v: usize, delegate: &F) -> SearchResult
+        where F: SearchDelegate {
         use std::cmp;
 
         let mut levels: Vec<i32> = vec![-1; self.vertexes_count + 1]; // vertex index starts from 1
@@ -63,8 +73,8 @@ impl Graph {
                         next_queue.push(vk);
                         parents[vk] = vi;
                         levels[vk] = level; // also mark it as visited
-                        if cb(vi) {
-                            return (levels, parents, max_queue_size)
+                        if delegate.entry_node(vk, vi, level, &parents) {
+                            return SearchResult { levels, parents, max_queue_size }
                         }
                     }
                     i += 1;
@@ -73,94 +83,57 @@ impl Graph {
             level += 1;
             current_queue = next_queue;
         }
-        (levels, parents, max_queue_size)
+        SearchResult { levels, parents, max_queue_size }
     }
 
-    pub fn parallel_bfs<F>(&self, v: usize, mut cb: F) -> (Vec<i32>, Vec<usize>, usize)
-        where F: FnMut(usize) -> bool {
+    pub fn parallel_bfs<F>(&self, v: usize, delegate: &'static F) -> SearchResult
+        where F: SearchDelegate + Sync {
         use std::cmp;
-        use std::sync::mpsc::{channel, RecvError};
+        use std::sync::mpsc::{channel};
         use threadpool::ThreadPool;
-        use std::sync::{Arc, RwLock};
 
         let mut levels: Vec<i32> = vec![-1; self.vertexes_count + 1]; // vertex index starts from 1
         let mut parents: Vec<usize> = vec![0; self.vertexes_count + 1]; // vertex index starts from 1
         let mut current_queue: Vec<usize> = Vec::new();
         let mut max_queue_size: usize = 0;
-        const QUEUE_SIZE_PARALLEL_THRESHOLD: usize = 1000;
         current_queue.push(v);
         levels[v] = 0;
         let mut level: i32 = 1;
-        const NUM_THREADS: usize = num_cpus::get();
-        let pool = ThreadPool::new(NUM_THREADS);
+        let pool = ThreadPool::new(num_cpus::get());
 
         // If there are no more vertices left in the current queue, the algorithm stops.
         while !current_queue.is_empty() {
             let mut next_queue: Vec<usize> = Vec::new();
             max_queue_size = cmp::max(max_queue_size, current_queue.len());
-            // Sort of optimization: run in parallel only if the queue has the meaningful size
-            // otherwise run sequential algorithm
-            if current_queue.len() < QUEUE_SIZE_PARALLEL_THRESHOLD {
-                for vi in current_queue {
-                    let mut i = self.x[vi];
-                    while i < self.x[vi + 1] {
-                        let vk: usize = self.a[i];
-                        // check if the node was not visited yet
-                        if levels[vk] == -1 {
-                            next_queue.push(vk);
-                            parents[vk] = vi;
-                            levels[vk] = level; // also mark it as visited
-                            if cb(vi) {
-                                return (levels, parents, max_queue_size)
-                            }
-                        }
-                        i += 1;
-                    }
-                }
-            }
-            else {
-                // In order to execute one iteration of the algorithm in parallel,
-                // you need to create your own nextQueue's for each thread.
-                // And after all the cycles are completed, merge the received queues.
-                let thread_queue_size = current_queue.len() / NUM_THREADS;
-                let (tx, rx) = channel();
-                let graph_counter = Arc::new(RwLock::<Graph>::new(self));
-                for t in 0..NUM_THREADS {
-                    let tx = tx.clone();
-                    let begin = t * thread_queue_size;
-                    let end = cmp::min(current_queue.len(), (t + 1) * thread_queue_size);
-                    let mut cur_queue: Vec<usize> = Vec::new();
-                    cur_queue.copy_from_slice(&current_queue[begin..end]);
-                    let graph_counter = Arc::clone(&graph_counter);
-                    pool.execute(move || {
-                        let mut next_queue: Vec<(usize, usize, i32)> = Vec::new();
-                        for vi in &cur_queue {
-                            let graph = graph_counter.read().unwrap();
-                            for i in graph.x[*vi]..graph.x[*vi + 1] {
-                                let vk: usize = graph.a[i];
-                                // check if the node was not visited yet
-                                if levels[vk] == -1 {
-                                    next_queue.push((vk, *vi, level));
-                                }
-                            }
-                        }
-                        tx.send(next_queue).expect("Could not send data!");
-                    });
-                }
-                // wait until all threads finish their job
-                // and merge the results
-                for _ in  0..NUM_THREADS {
-                    let queue: Vec<(usize, usize, i32)> = rx.recv().unwrap();
-                    for (vk, vi, level) in queue {
+            let (tx, rx) = channel();
+            for vi in current_queue {
+                let mut i = self.x[vi];
+                while i < self.x[vi + 1] {
+                    let vk: usize = self.a[i];
+                    // check if the node was not visited yet
+                    if levels[vk] == -1 {
+                        next_queue.push(vk);
                         parents[vk] = vi;
                         levels[vk] = level; // also mark it as visited
-                        next_queue.push(vk);
+                        let tx = tx.clone();
+                        let parents = parents.clone();
+                        pool.execute(move || {
+                            let res = delegate.entry_node(vk, vi, level, &parents);
+                            tx.send(res).expect("could not send data!");
+                        });
                     }
+                    i += 1;
+                }
+            }
+            for _ in  0..next_queue.len() {
+                let res: bool = rx.recv().unwrap();
+                if res {
+                    return SearchResult { levels, parents, max_queue_size }
                 }
             }
             level += 1;
             current_queue = next_queue;
         }
-        (levels, parents, max_queue_size)
+        SearchResult { levels, parents, max_queue_size }
     }
 }
