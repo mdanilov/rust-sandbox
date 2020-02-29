@@ -39,14 +39,14 @@ pub struct SearchResult {
 }
 
 pub trait SearchDelegate {
-    fn entry_node(&self, v: usize, parent: usize, level: i32, parents: &Vec<usize>) -> bool;
+    fn entry_node(&mut self, v: usize, parent: usize, level: i32, parents: &Vec<usize>) -> bool;
 }
 
 impl Graph {
     /// Perform breadth-first search algorithm on the graph
     /// starting from the vertex 'v'.
     /// For each explored node the 'cb' callback function is called.
-    pub fn bfs<F>(&self, v: usize, delegate: &F) -> SearchResult
+    pub fn bfs<F>(&self, v: usize, delegate: &mut F) -> SearchResult
         where F: SearchDelegate {
         use std::cmp;
 
@@ -86,7 +86,7 @@ impl Graph {
         SearchResult { levels, parents, max_queue_size }
     }
 
-    pub fn parallel_bfs<F>(&self, v: usize, delegate: &'static F) -> SearchResult
+    pub fn bfs_parallel<F>(&self, v: usize, delegate: &'static mut F) -> SearchResult
         where F: SearchDelegate + Sync {
         use std::cmp;
         use std::sync::mpsc::{channel};
@@ -118,8 +118,9 @@ impl Graph {
                         let tx = tx.clone();
                         let parents = parents.clone();
                         pool.execute(move || {
-                            let res = delegate.entry_node(vk, vi, level, &parents);
-                            tx.send(res).expect("could not send data!");
+                            // @todo how to do that in Rust?!
+                            //let res = delegate.entry_node(vk, vi, level, &parents);
+                            tx.send(false).expect("could not send data!");
                         });
                     }
                     i += 1;

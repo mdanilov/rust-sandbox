@@ -3,14 +3,24 @@ use graph;
 use std::env;
 use std::io::{self, Write};
 
-pub struct Statistics {
-    pub vertexes_count: usize,
-    pub total_visited: usize,
-    pub console_output_step: usize
+struct Logger {
+    vertexes_count: usize,
+    total_visited: usize,
+    console_output_step: usize
 }
 
-impl graph::SearchDelegate for Statistics {
-    fn entry_node(&self, _v: usize, _parent: usize, _level: i32, _parents: &Vec<usize>) -> bool {
+impl Logger {
+    fn new(vertexes_count: usize) -> Logger {
+        Logger {
+            vertexes_count,
+            total_visited: 1,  // `0` node
+            console_output_step: 0
+        }
+    }
+}
+
+impl graph::SearchDelegate for Logger {
+    fn entry_node(&mut self, _v: usize, _parent: usize, _level: i32, _parents: &Vec<usize>) -> bool {
         self.total_visited += 1;
         const CONSOLE_OUTPUT_INTERVAL: usize = 100000;
         let step: usize = self.total_visited / CONSOLE_OUTPUT_INTERVAL;
@@ -30,13 +40,9 @@ fn main() {
     let graph = graph::utils::read_from_file(filename);
 
     let head = 1;
-    let stats = Statistics {
-        vertexes_count: graph.vertexes_count,
-        total_visited: 1, // mark vertex with index 0 visited
-        console_output_step: 0
-    };
+    let mut stats = Logger::new(graph.vertexes_count);
     println!("searching graph starting from {:?} vertex...", head);
-    let result = graph.bfs(head, &stats);
+    let result = graph.bfs(head, &mut stats);
     println!("\r - visit {:?} nodes ({:?}%)", stats.total_visited, ((stats.total_visited) * 100) / graph.vertexes_count);
     println!("finished searching graph...");
     println!(" - visited vertices:          {:?}", stats.total_visited);
