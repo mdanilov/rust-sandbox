@@ -38,16 +38,12 @@ pub struct SearchResult {
     pub max_queue_size: usize
 }
 
-pub trait SearchDelegate {
-    fn entry_node(&mut self, v: usize, parent: usize, level: i32, parents: &Vec<usize>) -> bool;
-}
-
 impl Graph {
     /// Perform breadth-first search algorithm on the graph
     /// starting from the vertex 'v'.
     /// For each explored node the 'cb' callback function is called.
     pub fn bfs<F>(&self, v: usize, delegate: &mut F) -> SearchResult
-        where F: SearchDelegate {
+        where F: FnMut(usize, usize, i32, &Vec<usize>) -> bool {
         use std::cmp;
 
         let mut levels: Vec<i32> = vec![-1; self.vertexes_count + 1]; // vertex index starts from 1
@@ -73,7 +69,7 @@ impl Graph {
                         next_queue.push(vk);
                         parents[vk] = vi;
                         levels[vk] = level; // also mark it as visited
-                        if delegate.entry_node(vk, vi, level, &parents) {
+                        if delegate(vk, vi, level, &parents) {
                             return SearchResult { levels, parents, max_queue_size }
                         }
                     }
@@ -86,11 +82,12 @@ impl Graph {
         SearchResult { levels, parents, max_queue_size }
     }
 
-    pub fn bfs_parallel<F>(&self, v: usize, delegate: &'static mut F) -> SearchResult
-        where F: SearchDelegate + Sync {
+    pub fn bfs_parallel<F>(&self, v: usize, delegate: F) -> SearchResult
+        where F: Fn(usize, usize, i32, &Vec<usize>) -> bool + Send + Sync + 'static {
         use std::cmp;
         use std::sync::mpsc::{channel};
         use threadpool::ThreadPool;
+        use std::sync::{Arc};
 
         let mut levels: Vec<i32> = vec![-1; self.vertexes_count + 1]; // vertex index starts from 1
         let mut parents: Vec<usize> = vec![0; self.vertexes_count + 1]; // vertex index starts from 1
@@ -99,13 +96,15 @@ impl Graph {
         current_queue.push(v);
         levels[v] = 0;
         let mut level: i32 = 1;
+
         let pool = ThreadPool::new(num_cpus::get());
+        let delegate = Arc::new(delegate);
+        let (tx, rx) = channel();
 
         // If there are no more vertices left in the current queue, the algorithm stops.
         while !current_queue.is_empty() {
             let mut next_queue: Vec<usize> = Vec::new();
             max_queue_size = cmp::max(max_queue_size, current_queue.len());
-            let (tx, rx) = channel();
             for vi in current_queue {
                 let mut i = self.x[vi];
                 while i < self.x[vi + 1] {
@@ -117,10 +116,9 @@ impl Graph {
                         levels[vk] = level; // also mark it as visited
                         let tx = tx.clone();
                         let parents = parents.clone();
+                        let delegate = delegate.clone();
                         pool.execute(move || {
-                            // @todo how to do that in Rust?!
-                            //let res = delegate.entry_node(vk, vi, level, &parents);
-                            tx.send(false).expect("could not send data!");
+                            tx.send(delegate(vk, vi, level, &parents)).expect("could not send data!");
                         });
                     }
                     i += 1;

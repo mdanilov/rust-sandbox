@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'bfs'",
+            "name": "Debug executable 'graph'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=bfs",
-                    "--package=bfs"
+                    "--bin=graph",
+                    "--package=graph"
                 ],
                 "filter": {
-                    "name": "bfs",
+                    "name": "graph",
                     "kind": "bin"
                 }
             },
@@ -25,16 +25,16 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'bfs'",
+            "name": "Debug unit tests in executable 'graph'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=bfs",
-                    "--package=bfs"
+                    "--bin=graph",
+                    "--package=graph"
                 ],
                 "filter": {
-                    "name": "bfs",
+                    "name": "graph",
                     "kind": "bin"
                 }
             },
