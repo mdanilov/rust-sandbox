@@ -1,5 +1,5 @@
-//! # Graph 
-//! 
+//! # Graph
+//!
 //! A library for traversing and searching graph data structures
 extern crate num_cpus;
 extern crate threadpool;
@@ -9,7 +9,7 @@ pub use utils::read_from_file;
 pub mod utils;
 
 /// Store graph as CSR (Compressed Sparse Rows)
-/// 
+///
 /// For an undirected graph with N vertices and M edges, two arrays are needed:
 ///     X (an array of pointers to adjacent vertices) and
 ///     A (an array of a list of adjacent vertices).
@@ -35,7 +35,7 @@ pub struct Graph {
 pub struct SearchResult {
     pub levels: Vec<i32>,
     pub parents: Vec<usize>,
-    pub max_queue_size: usize
+    pub max_queue_size: usize,
 }
 
 impl Graph {
@@ -43,7 +43,9 @@ impl Graph {
     /// starting from the vertex 'v'.
     /// For each explored node the 'cb' callback function is called.
     pub fn bfs<F>(&self, v: usize, delegate: &mut F) -> SearchResult
-        where F: FnMut(usize, usize, i32, &Vec<usize>) -> bool {
+    where
+        F: FnMut(usize, usize, i32, &Vec<usize>) -> bool,
+    {
         use std::cmp;
 
         let mut levels: Vec<i32> = vec![-1; self.vertexes_count + 1]; // vertex index starts from 1
@@ -70,7 +72,11 @@ impl Graph {
                         parents[vk] = vi;
                         levels[vk] = level; // also mark it as visited
                         if delegate(vk, vi, level, &parents) {
-                            return SearchResult { levels, parents, max_queue_size }
+                            return SearchResult {
+                                levels,
+                                parents,
+                                max_queue_size,
+                            };
                         }
                     }
                     i += 1;
@@ -79,15 +85,21 @@ impl Graph {
             level += 1;
             current_queue = next_queue;
         }
-        SearchResult { levels, parents, max_queue_size }
+        SearchResult {
+            levels,
+            parents,
+            max_queue_size,
+        }
     }
 
     pub fn bfs_parallel<F>(&self, v: usize, delegate: F) -> SearchResult
-        where F: Fn(usize, usize, i32, &Vec<usize>) -> bool + Send + Sync + 'static {
+    where
+        F: Fn(usize, usize, i32, &Vec<usize>) -> bool + Send + Sync + 'static,
+    {
         use std::cmp;
-        use std::sync::mpsc::{channel};
+        use std::sync::mpsc::channel;
+        use std::sync::Arc;
         use threadpool::ThreadPool;
-        use std::sync::{Arc};
 
         let mut levels: Vec<i32> = vec![-1; self.vertexes_count + 1]; // vertex index starts from 1
         let mut parents: Vec<usize> = vec![0; self.vertexes_count + 1]; // vertex index starts from 1
@@ -118,21 +130,30 @@ impl Graph {
                         let parents = parents.clone();
                         let delegate = delegate.clone();
                         pool.execute(move || {
-                            tx.send(delegate(vk, vi, level, &parents)).expect("could not send data!");
+                            tx.send(delegate(vk, vi, level, &parents))
+                                .expect("could not send data!");
                         });
                     }
                     i += 1;
                 }
             }
-            for _ in  0..next_queue.len() {
+            for _ in 0..next_queue.len() {
                 let res: bool = rx.recv().unwrap();
                 if res {
-                    return SearchResult { levels, parents, max_queue_size }
+                    return SearchResult {
+                        levels,
+                        parents,
+                        max_queue_size,
+                    };
                 }
             }
             level += 1;
             current_queue = next_queue;
         }
-        SearchResult { levels, parents, max_queue_size }
+        SearchResult {
+            levels,
+            parents,
+            max_queue_size,
+        }
     }
 }

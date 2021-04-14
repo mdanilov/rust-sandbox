@@ -19,8 +19,10 @@
                     "kind": "bin"
                 }
             },
-            "args": ["data/testdata.graph"],
-            "cwd": "${workspaceFolder}"
+            "args": [
+                "data/testdata.graph"
+            ],
+            "cwd": "${workspaceFolder}/graph"
         },
         {
             "type": "lldb",
@@ -39,7 +41,7 @@
                 }
             },
             "args": [],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}/graph"
         }
     ]
 }

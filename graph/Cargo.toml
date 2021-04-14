@@ -1,7 +1,7 @@
 [package]
 name = "graph"
 version = "0.1.0"
-authors = ["Maxim Danilov <mdanilov@me.com>"]
+authors = ["Maksim Danilov <mdanilov@me.com>"]
 edition = "2018"
 description = "Simple graph search utility"
 license = "MIT OR Apache-2.0"
