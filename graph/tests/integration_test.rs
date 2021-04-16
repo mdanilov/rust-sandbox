@@ -3,7 +3,7 @@ use graph;
 #[test]
 fn read_small_graph() {
     let test_file = String::from("tests/data/small.graph");
-    let g = graph::utils::read_from_file(&test_file);
+    let g = graph::read_from_file(&test_file);
     assert_eq!(6, g.edges_count);
     assert_eq!(4, g.vertexes_count);
     assert_eq!([0, 0, 2, 4, 6], &g.x[..]);
